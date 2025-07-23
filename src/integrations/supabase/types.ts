@@ -14,13 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          referral_code: string
+          referral_count: number
+          referred_by_code: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id: string
+          referral_code: string
+          referral_count?: number
+          referred_by_code?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          referral_code?: string
+          referral_count?: number
+          referred_by_code?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_referral_count: {
+        Args: { p_referral_code: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

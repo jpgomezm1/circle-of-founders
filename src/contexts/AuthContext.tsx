@@ -1,0 +1,105 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signUpWithReferral: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signUpWithReferral = async (email: string, password: string) => {
+    const redirectUrl = `${window.location.origin}/`;
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    });
+
+    if (!error && data.user) {
+      const referred_by_code = localStorage.getItem('referral_code');
+      
+      try {
+        const { error: processError } = await supabase.functions.invoke('process-signup', {
+          body: {
+            userId: data.user.id,
+            email: data.user.email,
+            referred_by_code,
+          },
+        });
+        
+        if (processError) {
+          console.error('Error processing signup:', processError);
+        }
+      } catch (err) {
+        console.error('Error calling process-signup function:', err);
+      } finally {
+        localStorage.removeItem('referral_code'); // Limpiar después de usar
+      }
+    }
+
+    return { data, error };
+  };
+
+  const signIn = async (email: string, password: string) => {
+    return await supabase.auth.signInWithPassword({ email, password });
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      session,
+      loading,
+      signUpWithReferral,
+      signIn,
+      signOut,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
